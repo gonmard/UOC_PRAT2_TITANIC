@@ -330,4 +330,72 @@ tablebyAClass
 prop.table(tablebyAClass, margin = 1) 
 ```
 
-Como se ha visto anteriormente, la 3a clase es la que más víctimas tiene, por lo que si nos fijamos en los niños, podemos ver que cada vez que aumentamos la clase, tenemos que la supervivencia de los incrementa de manera significativa.
+Como se ha visto anteriormente, la 3a clase es la que más víctimas tiene, por lo que si nos fijamos en los niños, podemos ver que cada vez que aumentamos la clase, tenemos que la supervivencia de los incrementa de manera significativa. 
+
+Para test: 
+
+```{r}
+grid.newpage()
+plotbyClass_test<-ggplot(test,aes(Pclass,fill=Survived))+geom_bar() +labs(x="Class", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by PClass(train)")
+
+plotbyAge_test<-ggplot(test,aes(Age,fill=Survived))+geom_bar() +labs(x="Age", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Age (train)")
+
+plotbySex_test<-ggplot(test,aes(Sex,fill=Survived))+geom_bar() +labs(x="Sex", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Sex (train)")
+
+plotbyEmbarked_test<-ggplot(test,aes(Embarked,fill=Survived))+geom_bar() +labs(x="Embarked", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Embarked (train)")
+
+grid.arrange(plotbyClass_test,plotbyAge_test,plotbySex_test, plotbyEmbarked_test,ncol=2)
+```
+
+``` {r}
+
+test$Age[test$Age <=18] = "Child"
+test$Age[(test$Age > 18) & (test$Age <=60) & (test$Age != "Child")] = "Adult"
+test$Age[(test$Age != "Child") & (test$Age != "Adult")] = "Senior"
+test$Age = as.factor(test$Age)
+          
+```
+
+Volvemos a hacer lo mismo ara ver los gráficos, con las Clases de edades "actulizadas": 
+
+```{r}
+grid.newpage()
+plotbyClass_test<-ggplot(test,aes(Pclass,fill=Survived))+geom_bar() +labs(x="Class", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by PClass(train)")
+
+plotbyAge_test<-ggplot(test,aes(Age,fill=Survived))+geom_bar() +labs(x="Age", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Age (train)")
+
+plotbySex_test<-ggplot(test,aes(Sex,fill=Survived))+geom_bar() +labs(x="Sex", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Sex (train)")
+
+plotbyEmbarked_test<-ggplot(test,aes(Embarked,fill=Survived))+geom_bar() +labs(x="Embarked", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Embarked (train)")
+
+grid.arrange(plotbyClass_test,plotbyAge_test,plotbySex_test, plotbyEmbarked_test,ncol=2)
+```
+
+Podemos ver que es similar al dataset de train, pero con la diferencia de que los hombres fueron víctima en su totalidad... Veremos ahora las probabilidades: 
+
+```{r}
+table_SexSurvivedTest <- table(test$Sex, test$Survived)
+prop.table(table_SexSurvivedTest, margin = 1)
+```
+
+Podemos ver que la totalidad de mujeres sobrevivió en el dataset de test y la totalidad de hombres murio. 
+
+```{r}
+table_PclassSurvivedTest <- table(test$Pclass,test$Survived)
+prop.table(table_PclassSurvivedTest, margin = 1)
+```
+
+En test, podemos ver que siempre tenemos mayoria de victimas y una proporción muy similar entre la 3a y 2a clase. Pero siempre tenemos mayoria de victimas, exceptuando la primera clase, que la tasa de víctimas es muy poco superior a la de supervivientes. 
+
+```{r}
+table_AgeSurvivedTest <- table(test$Age,test$Survived)
+prop.table(table_AgeSurvivedTest, margin = 1) 
+```
+
+Podemos ver que en test las proporciones son similares a lo que podemos ver en train
+
+```{r}
+tablebyAClassTest <- table(test$Age,test$Survived,test$Pclass)
+
+prop.table(tablebyAClassTest, margin = 1) 
+```

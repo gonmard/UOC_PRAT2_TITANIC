@@ -485,7 +485,7 @@ predictTestSex <- glm(Survived ~ Sex,family = "binomial" , data = test)
 summary(predictTestSex)
 ```
 
-Podemos ver que la variable Sex, como se ha visto anteriormente, en la variable Sex, los hombres son los quee tienen la tasa de no supervivencia mayor a la de las mujeres... 
+podemos ver que la probabilidad de supervivencia disminuye  cuando el sexo del pasajero es hombre, en ambos dataframes. 
 
 ```{r}
 predictTrainAge <- glm(Survived ~ Age,family = "binomial" , data = train)
@@ -494,12 +494,16 @@ predictTestAge <- glm(Survived ~ Age,family = "binomial" , data = test)
 summary(predictTestAge)
 ```
 
+Podemos ver que cuando la edad del pasajero es niño la probabilidad de supervivencia aumenta, mientras que disminuye en caso de senior, para el caso de train. En caso de test, podemos ver que la probabilidad de supervivencia disminuye cuando el pasajero es niño o senior. 
+
 ```{r}
 predictTrainPclass <- glm(Survived ~ Pclass,family = "binomial" , data = train)
 summary(predictTrainPclass)
 predictTestPclass <- glm(Survived ~ Pclass,family = "binomial" , data = test)
 summary(predictTestPclass)
 ```
+Podemos ver que para ambos datafames, la probabilidad de sobrevivir siendo pasajero de 2a y 3a clase disminuye notablemente. 
+
 
 ```{r}
 predictTrainTotal <- glm(Survived ~ Sex + Pclass + Age,family = "binomial", data = train)
@@ -507,6 +511,8 @@ summary(predictTrainTotal)
 predictTestTotal <- glm(Survived ~ Sex + Pclass + Age,family = "binomial", data = test)
 summary(predictTestTotal)
 ```
+Podemos ver que para train, el hecho de ser niño aumenta la probabilidad de sobrevivir, mientras que pertenecer a la 2a o 3a clase disminuye las porbabilidades de supervivencia, al igual que ser hombre, que tambien disminuye notablemente. 
+En train podemos ver que sólo aumentaremos las probabilidades de supervivencia si somos ancianos, pero las dismminuiremos si pertenecemos a la 2a o 3a clase, al igual que siendo hombres o niños. 
 
 Entonces miraremos el modelo C50; 
 

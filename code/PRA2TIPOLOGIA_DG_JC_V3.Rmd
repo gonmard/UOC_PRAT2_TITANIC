@@ -1,0 +1,727 @@
+---
+title: "PRA2TIPOLOGIA"
+author: "JORDI COSTILLA/DIEGO GONZALEZ"
+date: "26/12/2019"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, include=FALSE}
+library(dplyr)
+
+library(data.table)
+
+library(ggplot2)
+
+library(grid)
+library(gridExtra)
+
+library(DT)
+
+library(plotly)
+
+library(mice)
+
+library(stringi)
+library(stringr)
+```
+
+Empezaremos cargando los ficheros a analizar:
+
+```{r}
+train <- read.csv('D:/Documentos/UOC/Master/3-TCVD/Practica2/train.csv')
+test <- read.csv('D:/Documentos/UOC/Master/3-TCVD/Practica2/test.csv')
+gender <- read.csv('D:/Documentos/UOC/Master/3-TCVD/Practica2/gender_submission.csv')
+```
+
+Una vez cargados, procedemos a visualizarlos:
+
+```{r}
+summary(train)
+summary(test)
+summary(gender)
+```
+Tras comprobar los resultados observamos que el dataset train est? completo, pero el dateset test carece del campo "Survived" que si podemos ver en el dataset gender_submissionl, por tanto e combinaremos ambos dataset para obtener un dataset completo tanto en train como en test;
+
+```{r}
+test1 <- merge(test, gender, by="PassengerId")
+test1 = test1[,c(1,12,2:11)]
+```
+
+Cargaremos los ficheros en dataframes: 
+
+```{r}
+train <- as.data.frame(train)
+test <- as.data.frame(test1)
+```
+
+Miraremos que coincidan las columnas de ambos dataframes: 
+
+```{r}
+colnames(train)
+str(train)
+colnames(test)
+str(test)
+```
+
+Ahora ya podremos empezar a trabajar con ellos, empezamos aplicando la funci?n Summary para los dataframes para disponer una idea general. 
+
+```{r}
+summary(train)
+summary(test)
+```
+
+```{r}
+head(train)
+head(test)
+```
+
+
+Factorizamos variables numericas Pclass y survived para test y para train; 
+
+
+```{r}
+train$Pclass <- as.factor(train$Pclass)
+train$Survived <- as.factor(train$Survived)
+test$Pclass <- as.factor(test$Pclass)
+test$Survived <- as.factor(test$Survived)
+
+sapply(train, function(x) class(x))
+sapply(test, function(x) class(x))
+```
+
+Una vez tenemos las clases de las variables procedemos a estudiar los valores nulos antes de hacer el análisi de estas; 
+
+```{r}
+sapply(train, function(x) sum(is.na(x)))
+sapply(test, function(x) sum(is.na(x)))
+```
+
+Podemos ver que solo presentamos valores nulos en la variable Age y en Fare en caso de test. Para tratarlos podr?amos eliminar los registros nulos, pero esto haria que perdieramos muchos datos, por lo que procederemos a sustituir estos valores nulos por la media; 
+
+
+
+```{r}
+summary(train$Age)
+summary(test$Age)
+
+```
+
+```{r}
+round(mean(train$Age, na.rm = TRUE),2)
+round(mean(test$Age, na.rm = TRUE),2)
+```
+
+Podemos ver que las medias de edades son 29.68 Para train y 30.27 para test, entonces las sustituiremos por estas:
+
+
+
+```{r}
+train <- train %>% mutate(Age = replace(Age, which(is.na(Age)), round(mean(train$Age, na.rm = TRUE),2)))
+test <- test %>% mutate(Age = replace(Age, which(is.na(Age)),round(mean(test$Age, na.rm = TRUE),2)))
+
+```
+
+```{r}
+head(train)
+head(test)
+```
+
+
+```{r}
+summary(test$Fare)
+test <- test %>% mutate(Fare = replace(Fare, which(is.na(Fare)), round(mean(test$Fare, na.rm = TRUE),2)))
+```
+
+Y ahora haremos lo mismo con la variable Fare, para el ?nico nulo que presenta: 
+
+```{r}
+summary(test$Fare)
+round(mean(test$Fare, na.rm = TRUE),2)
+```
+
+Miraremos si tiene sentido primero el cambio de Fare, ya que tenemos que ver a qu? clase corresponde este pasajero: 
+
+```{r}
+
+test[test$Fare == 35.63,]$PassengerId
+
+test[test$PassengerId == 1044,]
+
+```
+
+Podemos ver que el pasajero cuya cuota se ha substituido por la media,podr?a no corresponder a la 3a clase, entonces miramos c?mo se distribuyen las cuotas:
+
+```{r}
+summary(test[test$Pclass==3,]$Fare)
+summary(test[test$Pclass==2,]$Fare)
+summary(test[test$Pclass==1,]$Fare)
+```
+
+Entonces el pasajero por el que se le ha cambiado el valor de Fare por la media, podr?a pertenecer perfectamente a la 3a clase, dado que esta por debajo del m?ximo valor de Fare en la tercera clase, como podemos ver en el summary anterior. 
+
+```{r}
+summary(test$Fare)
+```
+
+Para acabar con el an?lisi de Fare, podemos ver lo siguiente: 
+
+
+```{r}
+train[train$Fare == 0,]$Sex
+```
+
+S?lo los hombres obtuvieron entradas gratuitas para el titanic, por lo que tambi?n podr?amos substituir por 0 el valor nulo anterior.
+Pero se ha decidido por lo anterior. 
+
+```{r}
+sapply(train, function(x) sum(is.na(x)))
+sapply(test, function(x) sum(is.na(x)))
+```
+
+Entonces podemos ver que el cambio se ha hecho correctamente. 
+
+
+Eliminaremos la variable PassengerId ya que no nos aporta nada: 
+
+
+```{r}
+train <- select(train, -PassengerId )
+test <- select(test, -PassengerId )
+```
+
+Tambien borraremos el ticket, la cabina, sibsp y parch, ya que s?lo aportan informaci?n extra que no necesitamos, lo que nos interesa es relacionar la supervivencia con las variables que consideramos que tienen m?s peso en el estudio, como son Age, Pclass y Sex.  
+```{r}
+train <- select(train, -Ticket )
+test <- select(test, -Ticket )
+```
+
+```{r}
+train <- select(train, -Cabin )
+test <- select(test, -Cabin )
+```
+
+```{r}
+train <- select(train, -SibSp )
+test <- select(test, -SibSp )
+```
+
+```{r}
+train <- select(train, -Parch )
+test <- select(test, -Parch )
+```
+
+Procederemos a analizar las variables para ambos datasets: 
+
+```{r}
+boxplot( train$Age, main="Age" )
+boxplot( test$Age, main="Age" )
+
+```
+
+Podemos ver los valores extremos:
+
+```{r}
+valuesX <- boxplot.stats(train$Age)$out
+#miramos valores extremos en la variable Age:
+cat("Valores extremos en Age de train:", toString(valuesX), "\n" )
+valuesY <- boxplot.stats(test$Age)$out
+#miramos valores extremos en la variable Age:
+cat("Valores extremos en Age de test:", toString(valuesY), "\n" )
+
+```
+
+```{r}
+
+idxAgeX <- which( train$Age %in% valuesX)
+idxAgeY <- which( test$Age %in% valuesY)
+
+trainA <- train[-idxAgeX, ]
+testA <- test[-idxAgeY,]
+#Boxplot final:
+boxplot( trainA$Age, main="Age tras de eliminar outliers (train)" )
+boxplot( testA$Age, main="Age tras de eliminar outliers (test)" )
+
+
+```
+
+Podemos ver que las medias en ambos casos son muy similares, pero para analizar las variables, no eliminaremos estos valores extremos puesto que en la edad consideramos importantes mantener a estos registros con edades superiores a la media e inferiores para poder determinar la tasa de superviv?ncia seg?n edades y si eliminamos ?sta se podr? ver afectada. 
+
+```{r}
+boxplot( train$Fare, main="Fare (train)" )
+boxplot( test1$Fare, main="Fare (test)" )
+```
+valores extremos: 
+
+```{r}
+values1X <- boxplot.stats(train$Fare)$out
+#miramos valores extremos en la variable Age:
+cat("Valores extremos en Fare (train):", toString(values1X), "\n" )
+values1Y <- boxplot.stats(test1$Fare)$out
+#miramos valores extremos en la variable Age:
+cat("Valores extremos en Fare (test):", toString(values1Y), "\n" )
+```
+
+```{r}
+
+idxFareX <- which( train$Fare %in% values1X)
+idxFareY <- which( test1$Fare %in% values1Y)
+
+FareX <- train[ -idxFareX, ]
+FareY <- test1[ -idxFareY, ]
+
+#Boxplot final:
+boxplot( FareX$Fare, main="Fare después de eliminar outliers (train)" )
+boxplot( FareY$Fare, main="Fare después de eliminar outliers (test)" )
+```
+
+Podemos ver que no tiene sentido eliminar los valores extremos en Fare, igual que en Age, dado que por l?gica podemos considerar que las tarifas de los pasajeros pueden variar dado que dependiendo de la clase a la que pertenezca puede ser m?s alto o m?s bajo...No nos interesa eliminarestos valores por que perderemos datos y cualquier p?rdida de datos consideramos que afectar? a nuestro estudio. 
+
+Procedemos al an?lisis de los datos:
+
+```{r}
+barplot(table(train$Survived), main = "Survived train", ylab = "Frecuency", xlab = "Survived")
+barplot(table(test$Survived), main = "Survived test", ylab = "Frecuency", xlab = "Survived")
+```
+
+El numero de registros para ambos dataframes es diferente, dado que tenemos m?s registros en train que en test, pero la clase mayoritaria en ambos, es la que no sobrevivi? a la catastrofe del Titanic. Miraremos por clase tambi?n, qu? clase fue la mayoritaria de pasajeros: 
+
+
+```{r}
+barplot(table(train$Pclass), main = "Pclass train", ylab = "Frecuency", xlab = "Pclass")
+barplot(table(test$Pclass), main = "Pclass test", ylab = "Frecuency", xlab = "Pclass")
+```
+
+La clase mayoritaria de passajeros en el Titanic, fue la 3ra, como es lógico, la mayoria de clientes que entraron en el titanic lo hicieron mediante la clase m?s econ?mica. 
+
+Vemos la distribuci?n de edades para train:
+```{r}
+summary(train$Age)
+par(mfrow=c(2,2))
+hist(train$Age)
+qqnorm(train$Age, main="Age")
+qqline
+```
+Vemos la distribuci?n de edades para test:
+```{r}
+summary(test$Age)
+par(mfrow=c(2,2))
+hist(test$Age)
+qqnorm(test$Age, main="Age")
+qqline
+```
+
+Valoramos las variables que no siguen una distribuci?n normal para test:
+
+```{r}
+library(nortest)
+alpha = 0.05
+col.names = colnames(test)
+for (i in 1:ncol(test)) {
+    if (i == 1) cat("Variables que no siguen una distribuci?n normal:\n")
+    if (is.integer(test[,i]) | is.numeric(test[,i])) {
+      p_val = ad.test(test[,i])$p.value
+      if (p_val < alpha) {
+        cat(col.names[i])
+        # Format output
+        if (i < ncol(test) - 1) cat(", ")
+        if (i %% 3 == 0) cat("\n")
+      }
+     }
+    }
+```
+Ahora realizamos el test de homogeneidad para test(Age ~ Survived )
+```{r}
+fligner.test(Age ~ Survived, data = test)
+```
+Valoramos las variables que no siguen una distribuci?n normal para train:
+
+```{r}
+library(nortest)
+alpha = 0.05
+col.names = colnames(train)
+for (i in 1:ncol(test)) {
+    if (i == 1) cat("Variables que no siguen una distribuci?n normal:\n")
+    if (is.integer(train[,i]) | is.numeric(train[,i])) {
+      p_val = ad.test(train[,i])$p.value
+      if (p_val < alpha) {
+        cat(col.names[i])
+        # Format output
+        if (i < ncol(train) - 1) cat(", ")
+        if (i %% 3 == 0) cat("\n")
+      }
+     }
+    }
+```
+Ahora realizamos el test de homogeneidad para train(Age ~ Survived )
+```{r}
+fligner.test(Age ~ Survived, data = train)
+```
+Pruebas estad?sticas, vemos la relaci?n entre Survived con Age y Fare, teniendo en cuenta que Fare de forma num?rica podr?a identificar la clase de cada pasajero en funci?n del coste aplicado a cada tarifa, realizaremos el test de Wilcox:
+
+```{r}
+wilcox.test(train$Age~train$Survived)
+wilcox.test(train$Fare~train$Survived)
+```
+
+Como resultado obtenemos que efectivamente existen diferencias significativas entre los grupos de edad, tal y como veremos con m?s detalle en las siguientes pruebas.
+
+
+Ahora aplicaremos para el test de de Kruskal-Wallis para la variable clase:
+
+```{r}
+kruskal.test(train$Pclass~train$Survived)
+```
+
+Como resultado obtenemos que estadisticamente tenemos diferencias entre los grupos de clase en contrate con la supervivencia de los pasajeros
+
+Aplicamos el test de supervivencia para ver la correlacion entre Edad y Sexo
+```{r}
+library(survival)
+library(survminer)
+require("survival")
+
+fit <- survfit(Surv(train$Age,train$Survived==1) ~ train$Sex, data = train)
+ggsurvplot(fit, data = train)
+
+```
+Nos interesa ver la relacion de la clase survived con el resto de variables, como la de la clase a la que pertenecian, la edad y el sexo: 
+
+Para train; 
+
+```{r}
+grid.newpage()
+plotbyClass_train<-ggplot(train,aes(Pclass,fill=Survived))+geom_bar() +labs(x="Class", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by PClass(train)")
+
+plotbyAge_train<-ggplot(train,aes(Age,fill=Survived))+geom_bar() +labs(x="Age", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Age (train)")
+
+plotbySex_train<-ggplot(train,aes(Sex,fill=Survived))+geom_bar() +labs(x="Sex", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Sex (train)")
+
+plotbyEmbarked_train<-ggplot(train,aes(Embarked,fill=Survived))+geom_bar() +labs(x="Embarked", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Embarked (train)")
+
+grid.arrange(plotbyClass_train,plotbyAge_train,plotbySex_train, plotbyEmbarked_train,ncol=2)
+```
+
+Podemos ver que en Pclass, la clase con mas victimas es la mayoritaria, es decir, la clase mas economica, pero tambi?n podemos ver que la proporcion de victimas y supervivientes es la que m?s se ve afectada... ya que m?s del 50% de los pasajeros de la 3a clase murieron. 
+Por lo que hace a la variable Sex, la proporcion con mas supervivientes es la de mujeres mientras que la proporcion de supervivientes masculinos es todo lo contrario. 
+Por puerto de embarcacion, podemos ver que pasa lo mismo que con la variable PClass, que tenemos un puerto, concretamente el de Southampton, con la mayor parte de pasajeros, entonces la proporci?n se acerca a lo que se ha visto anteriormente con la 3ra Clase. 
+Finalmente tenemos a la variable Age, que tendremos que agrupar en 3 segmentos, separandola por rangos de Edad, ya que como se ha hecho hasta ahora, para visualizarlo es muy complicado de poder determinar la tasa de superviv?ncia y entonces lo cambiaremos por child, adult y senior (menores o iguales a 18 años seran los jovenes, seguido de los adultos hasta los 60 a?os) 
+
+
+```{r}
+trainAge <-train
+trainAge$Age[trainAge$Age <=18] = "Child"
+trainAge$Age[(trainAge$Age > 18) & (trainAge$Age <=60) & (trainAge$Age != "Child")] = "Adult"
+trainAge$Age[(trainAge$Age != "Child") & (trainAge$Age != "Adult")] = "Senior"
+trainAge$Age = as.factor(trainAge$Age)
+          
+```
+
+
+```{r}
+grid.newpage()
+
+NewplotbyAge_train<-ggplot(trainAge,aes(Age,fill=Survived))+geom_bar() +labs(x="Age", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Age (train)")
+
+
+grid.arrange(NewplotbyAge_train,ncol=2)
+```
+
+
+Entonces podemos ver perfectamente que la mayoria de pasajeros eran Adultos y la mayoria de ellos fueron victimas, esto podemos atribuirlo a que la mayoria de pasajeros no sobrevivieron, mientras que en pasajeros entre 0-18 a?os, la proporci?n se ve m?s repartida que en Adult. Por ?ltimo tenemos a Senior, que son minoria, podemos ver que la proporcion de victimas ?s mayor a la de supervivientes. 
+
+Una vez mostradas las gr?ficas, podemos ver las proporciones: 
+
+
+```{r}
+table_SexSurvived <- table(trainAge$Sex, trainAge$Survived)
+prop.table(table_SexSurvived, margin = 1)
+```
+
+Podemos ver que un 74% de la poblaci?n de mujeres sobrevivi? a la catastrofe mientras que s?lo el 18% de la poblaci?n masculina lo hizo... 
+
+Sguiremos con el estudio de la clase: 
+
+```{r}
+table_PclassSurvived <- table(trainAge$Pclass,train$Survived)
+prop.table(table_PclassSurvived, margin = 1)
+```
+
+Como se ha comentado anteriormente, podemos ver que el  76% de los pasajeros pertenecientes a la 3a clase, fueron victimas. Podemos ver que mientras subimos de clase (de 3a a 1a) vamos encontrando una mayor tasa de superviv?ncia que podr?amos decir que esta se debe a que cada vez que subimos de clase, nos encontramos con menos pasajeros. 
+
+```{r}
+table_AgeSurvived <- table(trainAge$Age,train$Survived)
+prop.table(table_AgeSurvived, margin = 1) 
+```
+
+Podemos ver que los ni?os sobrevivieron en un 50% m?s o menos, debido a que se ha elegido la edad de 18 a?os como ni?o tambi?n  y podr?amos ver, en los siguientes c?lculos que si lo cambiamos a ni?o hasta la edad de 15, que podr?a cambiar:
+
+```{r}
+trainAge <- train
+trainAge$Age[trainAge$Age <=15] = "Child"
+trainAge$Age[(trainAge$Age > 15) & (trainAge$Age <=60) & (trainAge$Age != "Child")] = "Adult"
+trainAge$Age[(trainAge$Age != "Child") & (trainAge$Age != "Adult")] = "Senior"
+trainAge$Age = as.factor(trainAge$Age)
+```
+
+```{r}
+grid.newpage()
+
+NewplotbyAge_train<-ggplot(trainAge,aes(Age,fill=Survived))+geom_bar() +labs(x="Age", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Age (train)")
+
+
+grid.arrange(NewplotbyAge_train,ncol=2)
+```
+
+
+Entonces podemos ver perfectamente que la mayoria de pasajeros eran Adultos y la mayoria de ellos fueron victimas, esto podemos atribuirlo a que la mayoria de pasajeros no sobrevivieron, mientras que en pasajeros entre 0-18 a?os, la proporci?n se ve m?s repartida que en Adult. Por ?ltimo tenemos a Senior, que son minoria, podemos ver que la proporcion de victimas ?s mayor a la de supervivientes. 
+
+Una vez mostradas las gr?ficas, podemos ver las proporciones: 
+
+```{r}
+table_SexSurvived <- table(trainAge$Sex, trainAge$Survived)
+prop.table(table_SexSurvived, margin = 1)
+```
+
+Podemos ver que un 74% de la poblaci?n de mujeres sobrevivi? a la catastrofe mientras que s?lo el 18% de la poblaci?n masculina lo hizo... 
+
+Sguiremos con el estudio de la clase: 
+
+```{r}
+table_PclassSurvived <- table(trainAge$Pclass,train$Survived)
+prop.table(table_PclassSurvived, margin = 1)
+```
+
+Como se ha comentado anteriormente, podemos ver que el  76% de los pasajeros pertenecientes a la 3a clase, fueron victimas. Podemos ver que mientras subimos de clase (de 3a a 1a) vamos encontrando una mayor tasa de superviv?ncia que podr?amos decir que esta se debe a que cada vez que subimos de clase, nos encontramos con menos pasajeros. 
+
+```{r}
+table_AgeSurvived <- table(trainAge$Age,train$Survived)
+prop.table(table_AgeSurvived, margin = 1) 
+```
+
+
+
+
+
+
+Podemos ver que ?ste cambio representa un incremento irrelevante, dado que se pensaba que incrementariamos mucho m?s la tasa de superviv?ncia de la clase ni?os, por lo que s?lo nos fijaremos en lo representado anteriormente. 
+
+Y lo combinaremos con la clase, la edad (child -> <=18) y la superviv?ncia. 
+
+
+```{r}
+tablebyAClass <- table(train$Age,train$Survived,train$Pclass)
+prop.table(tablebyAClass, margin = 1) 
+```
+
+Como se ha visto anteriormente, la 3a clase es la que m?s v?ctimas tiene, por lo que si nos fijamos en los ni?os, podemos ver que cada vez que aumentamos la clase, tenemos que la supervivencia de los incrementa de manera significativa. 
+
+
+```{r}
+tablebyBClass <- table(train$Age,train$Survived,train$Sex)
+prop.table(tablebyBClass, margin = 1) 
+```
+
+Podemos ver que la tasa de mujeres supervivientes en senior es del 100%, mientras que en hombres es mucho menor, ya que s?lo sobrevivieron 2 hombres mayores a 60 a?os... Igual que la proporcion de mujeres supervivientes respecto a los hombres supervivientes es mayor en Adult y en Child. 
+
+Para test: 
+ 
+
+```{r}
+grid.newpage()
+plotbyClass_test<-ggplot(test,aes(Pclass,fill=Survived))+geom_bar() +labs(x="Class", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by PClass(train)")
+
+plotbyAge_test<-ggplot(test,aes(Age,fill=Survived))+geom_bar() +labs(x="Age", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Age (train)")
+
+plotbySex_test<-ggplot(test,aes(Sex,fill=Survived))+geom_bar() +labs(x="Sex", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Sex (train)")
+
+plotbyEmbarked_test<-ggplot(test,aes(Embarked,fill=Survived))+geom_bar() +labs(x="Embarked", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Embarked (train)")
+
+grid.arrange(plotbyClass_test,plotbyAge_test,plotbySex_test, plotbyEmbarked_test,ncol=2)
+```
+
+``` {r}
+
+test$Age[test$Age <=18] = "Child"
+test$Age[(test$Age > 18) & (test$Age <=60) & (test$Age != "Child")] = "Adult"
+test$Age[(test$Age != "Child") & (test$Age != "Adult")] = "Senior"
+test$Age = as.factor(test$Age)
+          
+```
+
+Volvemos a hacer lo mismo para ver los gr?ficos, con las Clases de edades "actulizadas": 
+
+```{r}
+grid.newpage()
+plotbyClass_test<-ggplot(test,aes(Pclass,fill=Survived))+geom_bar() +labs(x="Class", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by PClass(train)")
+
+plotbyAge_test<-ggplot(test,aes(Age,fill=Survived))+geom_bar() +labs(x="Age", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Age (train)")
+
+plotbySex_test<-ggplot(test,aes(Sex,fill=Survived))+geom_bar() +labs(x="Sex", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Sex (train)")
+
+plotbyEmbarked_test<-ggplot(test,aes(Embarked,fill=Survived))+geom_bar() +labs(x="Embarked", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("black","#008000"))+ggtitle("Survived by Embarked (train)")
+
+grid.arrange(plotbyClass_test,plotbyAge_test,plotbySex_test, plotbyEmbarked_test,ncol=2)
+```
+
+Podemos ver que es similar al dataset de train, pero con la diferencia de que los hombres fueron v?ctima en su totalidad... Veremos ahora las probabilidades: 
+
+```{r}
+table_SexSurvivedTest <- table(test$Sex, test$Survived)
+prop.table(table_SexSurvivedTest, margin = 1)
+```
+
+Podemos ver que la totalidad de mujeres sobrevivi? en el dataset de test y la totalidad de hombres murio. 
+
+```{r}
+table_PclassSurvivedTest <- table(test$Pclass,test$Survived)
+prop.table(table_PclassSurvivedTest, margin = 1)
+```
+
+En test, podemos ver que siempre tenemos mayoria de victimas y una proporci?n muy similar entre la 3a y 2a clase. Pero siempre tenemos mayoria de victimas, exceptuando la primera clase, que la tasa de v?ctimas es muy poco superior a la de supervivientes. 
+
+```{r}
+table_AgeSurvivedTest <- table(test$Age,test$Survived)
+prop.table(table_AgeSurvivedTest, margin = 1) 
+```
+
+Podemos ver que en test las proporciones son similares a lo que podemos ver en train
+
+```{r}
+tablebyAClassTest <- table(test$Age,test$Survived,test$Pclass)
+
+prop.table(tablebyAClassTest, margin = 1) 
+```
+
+```{r}
+tableTestbyBClass <- table(test$Age,test$Survived,test$Sex)
+tableTestbyBClass
+prop.table(tableTestbyBClass, margin = 1) 
+```
+
+Podemos ver que en test todas las mujeres sobrevivieron, mientras que todos los hombres murieron, sin tener que depender de la edad, la variable que tiene m?s peso en test para decidir la superviv?ncia de un pasajero, es la del género. 
+
+Ahora empezaremos a hacer algunas predicciones:
+
+
+```{r}
+predictTrainSex <- glm(Survived ~ Sex,family = "binomial" , data = train)
+summary(predictTrainSex)
+predictTestSex <- glm(Survived ~ Sex,family = "binomial" , data = test)
+summary(predictTestSex)
+```
+
+podemos ver que la probabilidad de supervivencia disminuye  cuando el sexo del pasajero es hombre, en ambos dataframes. 
+
+```{r}
+predictTrainAge <- glm(Survived ~ Age,family = "binomial" , data = train)
+summary(predictTrainAge)
+predictTestAge <- glm(Survived ~ Age,family = "binomial" , data = test)
+summary(predictTestAge)
+```
+
+Podemos ver que cuando la edad del pasajero es niño la probabilidad de supervivencia aumenta, mientras que disminuye en caso de senior, para el caso de train. En caso de test, podemos ver que la probabilidad de supervivencia disminuye cuando el pasajero es niño o senior. 
+
+```{r}
+predictTrainPclass <- glm(Survived ~ Pclass,family = "binomial" , data = train)
+summary(predictTrainPclass)
+predictTestPclass <- glm(Survived ~ Pclass,family = "binomial" , data = test)
+summary(predictTestPclass)
+```
+Podemos ver que para ambos datafames, la probabilidad de sobrevivir siendo pasajero de 2a y 3a clase disminuye notablemente. 
+
+
+```{r}
+predictTrainTotal <- glm(Survived ~ Sex + Pclass + Age,family = "binomial", data = train)
+summary(predictTrainTotal)
+predictTestTotal <- glm(Survived ~ Sex + Pclass + Age,family = "binomial", data = test)
+summary(predictTestTotal)
+```
+Podemos ver que para train, el hecho de ser niño aumenta la probabilidad de sobrevivir, mientras que pertenecer a la 2a o 3a clase disminuye las porbabilidades de supervivencia, al igual que ser hombre, que tambien disminuye notablemente. 
+En train podemos ver que sólo aumentaremos las probabilidades de supervivencia si somos ancianos, pero las dismminuiremos si pertenecemos a la 2a o 3a clase, al igual que siendo hombres o niños. 
+
+Entonces miraremos el modelo C50; 
+
+```{r}
+nrow(train)
+nrow(test)
+```
+
+Creamos otro dataset para train para ejecutar el modelo C50;
+
+```{r}
+mTrain <- select(train, -Embarked, -Fare, -Name)
+mTrain$Survived <- ifelse(mTrain$Survived == 0, "Dies", "Lives")
+mTrain$Survived <- as.factor(mTrain$Survived)
+head(mTrain)
+```
+
+Hacemos lo mismo para test:
+
+```{r}
+mTest <- select(test, -Embarked, -Fare, -Name)
+mTest$Survived <- ifelse(mTest$Survived == 0, "Dies", "Lives")
+mTest$Survived <- as.factor(mTest$Survived)
+head(mTest)
+```
+
+```{r}
+yTR <- mTrain[,1] 
+XTR <- mTrain[,2:4]
+yTS <- mTrain[,1] 
+XTS <- mTrain[,2:4]
+```
+
+
+```{r}
+trainX <- XTR[1:891,]
+trainy <- yTR[1:891]
+testX <- XTS[1:418,]
+testy <- yTS[1:418]
+```
+
+
+```{r}
+modelTR <- C50::C5.0(trainX, trainy, rules=TRUE )
+summary(modelTR)
+```
+
+
+
+Podemos ver ahora que si la es hombre tiene un 81% de probabilidades de morir mientras que una mujer tiene un porcentaje de supervivencia de 0,74%, no nos aparece ninguna Rule que nos lo relacione con Age o Pclass, la clase que tiene más peso para decidir el destino de la vida de un pasajero en el titanic es la variable Sex; 
+
+```{r}
+model1 <- C50::C5.0(trainX, trainy)
+plot(model1)
+
+```
+
+Podemos ver en el �rbol de decision c�mo se distribuyen segun genero, que es la variable que tiene más peso en relaci�n a la supervivencia, seguido de la clase y la edad para las mujeres y la edad y la clase para los hombres.
+
+Finalmente comprobamos su cualidad prediciendo la clase por los datos de prueba con los datos de test. 
+
+```{r}
+predicted_model <- predict(model1, testX, type="class")
+print(sprintf("La precisi�n del �rbol es: %.4f %%",100*sum(predicted_model == testy) / length(predicted_model)))
+```
+
+
+Podemos ver que la precisión del árbol es del 83%. 
+
+Para finalizar, crearemos los nuevos archivos csv de para train y test,  que estos estar�n sin valores nulos y sin las variables que no consideremos relevantes para el estudio.  
+
+```{r}
+
+write.csv(train, file = "D:/Documentos/UOC/Master/3-TCVD/Practica2/trainFinal.csv")
+write.csv(test, file = "D:/Documentos/UOC/Master/3-TCVD/Practica2/testFinal.csv")
+
+```
+
+
+
